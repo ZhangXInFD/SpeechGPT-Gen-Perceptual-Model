@@ -16,7 +16,6 @@ from einops import rearrange
 from .dataset import get_dataloader, SoundStormDataset
 from .optimizer import get_optimizer
 from .soundstorm import SoundStorm
-from .tracking import MyTensorBoardTracker
 
 from accelerate import Accelerator, DistributedType, DistributedDataParallelKwargs
 from speechtokenizer import SpeechTokenizer
