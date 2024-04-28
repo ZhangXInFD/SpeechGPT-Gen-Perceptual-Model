@@ -14,8 +14,7 @@ from torchdiffeq import odeint
 
 from einops import rearrange, repeat, reduce, pack, unpack
 
-from .conformer import UConformer
-from .conformer2 import Conformer
+from .conformer import UConformer, Conformer
 from .transformer import Transformer, Uformer
 from .utils import *
 from pathlib import Path
