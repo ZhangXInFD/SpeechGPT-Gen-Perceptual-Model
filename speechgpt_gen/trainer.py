@@ -753,7 +753,6 @@ class ConditionalFlowMatcherTrainer(nn.Module):
         self.epochs = trainer_args.get('epochs', 20)
         self.num_warmup_steps = trainer_args.get('num_warmup_steps', 5000)
         self.batch_size = trainer_args.get('batch_size', 32)
-        self.grad_accum_every = trainer_args.get('grad_accum_every', 1)
         
 
         # max grad norm
@@ -811,7 +810,7 @@ class ConditionalFlowMatcherTrainer(nn.Module):
         # lr and scheduler
         self.lr = lr
         self.initial_lr = trainer_args.get('initial_learning_rate', 0.0)
-        num_train_steps = self.epochs * self.ds.__len__() // (self.batch_size * self.grad_accum_every)
+        num_train_steps = self.epochs * self.ds.__len__() // (self.batch_size * self.accelerator.gradient_accumulation_steps)
         self.scheduler = CosineAnnealingLR(self.optim, T_max = num_train_steps)
         
         
@@ -922,9 +921,6 @@ class ConditionalFlowMatcherTrainer(nn.Module):
         
         return cond, target, mask
 
-    # def generate(self, *args, **kwargs):
-    #     return self.model.generate(*args, **kwargs)
-
     @property
     def device(self):
         return self.accelerator.device
@@ -951,7 +947,6 @@ class ConditionalFlowMatcherTrainer(nn.Module):
         
         self.model.train()
         
-        grad_accum = 0
         logs = {}
         steps = int(self.steps.item())               
         if steps < self.num_warmup_steps:
@@ -965,87 +960,82 @@ class ConditionalFlowMatcherTrainer(nn.Module):
         for epoch in range(self.epochs):
             if self.is_main:
                 print(f'Epoch:{epoch} start...')
-                    
+                
             for batch in self.dl:
-                # print(self.steps)
                 
-                x0, x1, mask = self.tokenize(batch)
-                # print(f'{self.accelerator.device} tokenize complete')
+                with self.accelerator.accumulate(self.model):
                 
-                loss = self.model(x0 = x0,
-                                    x1 = x1,
-                                    mask = mask)
-                # print(f'{self.accelerator.device} forward complete')
-                
-                if self.is_main:
-                    accum_log(logs, {'loss': loss.item() / self.grad_accum_every})
-                
-                self.accelerator.backward(loss / self.grad_accum_every)
-                # print(f'{self.accelerator.device} backward complete')
-                grad_accum += 1
-                self.accelerator.wait_for_everyone()
-                
-                
-                # update params
-                if grad_accum == self.grad_accum_every:
-                    if exists(self.max_grad_norm):
+                    x0, x1, mask = self.tokenize(batch)
+                    
+                    loss = self.model(x0 = x0,
+                                        x1 = x1,
+                                        mask = mask)
+                    
+                    if self.is_main:
+                        accum_log(logs, {'loss': loss.item() / self.accelerator.gradient_accumulation_steps})
+                    
+                    self.accelerator.backward(loss)
+                    
+                    
+                    # update params
+                    if self.accelerator.sync_gradients and exists(self.max_grad_norm):
                         self.accelerator.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
                     self.optim.step()
                     self.optim.zero_grad()
-                    grad_accum = 0
-                    
-                    # print(f'{self.accelerator.device} optimize complete')
-                    self.accelerator.wait_for_everyone()
-                    
-                    # log
-                    if self.is_main and not (steps % self.log_steps):
-                        self.print(f"Epoch {epoch} -- Step {steps}: loss: {logs['loss']:0.3f}")
-                        self.accelerator.log({"train/loss": logs['loss'], "train/learning_rate": lr}, step=steps)
-                    logs = {}
-                    
-                    
-                    # validate and save model
-                    if not (steps % self.save_model_steps):
+                        
+                    if self.accelerator.sync_gradients:
+                        self.accelerator.wait_for_everyone()
+                        
+                        # log
+                        if self.is_main and not (steps % self.log_steps):
+                            self.print(f"Epoch {epoch} -- Step {steps}: loss: {logs['loss']:0.3f}")
+                            self.accelerator.log({"train/loss": logs['loss'], "train/learning_rate": lr}, step=steps)
+                        logs = {}
                         
                         
-                        # validate
-                        losses = []
-                        total_loss = 0.0
-                        num = 0
-                        self.model.eval()
-                        for batch in self.valid_dl:
-                            with torch.inference_mode():
-                                x0, x1, mask = self.tokenize(batch)
-                
-                                loss = self.model(x0 = x0,
-                                                    x1 = x1,
-                                                    mask = mask)
-                                b = x0.size(0)
-                                num += b
-                                total_loss += loss.item() * b
-                                losses.append(loss.item())
-                        if self.is_main:
-                            self.print(f'{steps}: valid loss {total_loss / num:0.3f}')  
-                            self.accelerator.log({"valid/loss": total_loss / num}, step=steps) 
+                        # validate and save model
+                        if not (steps % self.save_model_steps):
                             
-                            # save model
-                            model_path = str(self.results_folder / f'ConditionalFlowMatcherTrainer_{steps:08d}')
-                            self.save(model_path, total_loss / num)                        
-                            self.print(f'{steps}: Saved model to {str(self.results_folder)}')
-                        self.model.train()
+                            
+                            # validate
+                            losses = []
+                            total_loss = 0.0
+                            num = 0
+                            self.model.eval()
+                            for batch in self.valid_dl:
+                                with torch.inference_mode():
+                                    x0, x1, mask = self.tokenize(batch)
                     
-                        # self.accelerator.wait_for_everyone()  
+                                    loss = self.model(x0 = x0,
+                                                        x1 = x1,
+                                                        mask = mask)
+                                    b = x0.size(0)
+                                    num += b
+                                    total_loss += loss.item() * b
+                                    losses.append(loss.item())
+                            if self.is_main:
+                                self.print(f'{steps}: valid loss {total_loss / num:0.3f}')  
+                                self.accelerator.log({"valid/loss": total_loss / num}, step=steps) 
+                                
+                                # save model
+                                if steps != 0:
+                                    model_path = str(self.results_folder / f'ConditionalFlowMatcherTrainer_{steps:08d}')
+                                    self.save(model_path, total_loss / num)                        
+                                    self.print(f'{steps}: Saved model to {str(self.results_folder)}')
+                            self.model.train()
                         
-                    # Update lr    
-                    self.steps += 1
-                    steps = int(self.steps.item())               
-                    if steps < self.num_warmup_steps:
-                        lr = self.warmup(steps)
-                        for param_group in self.optim.param_groups:
-                            param_group['lr'] = lr
-                    else:
-                        self.scheduler.step() 
-                        lr = self.scheduler.get_last_lr()[0]  
+                            # self.accelerator.wait_for_everyone()  
+                            
+                        # Update lr    
+                        self.steps += 1
+                        steps = int(self.steps.item())               
+                        if steps < self.num_warmup_steps:
+                            lr = self.warmup(steps)
+                            for param_group in self.optim.param_groups:
+                                param_group['lr'] = lr
+                        else:
+                            self.scheduler.step() 
+                            lr = self.scheduler.get_last_lr()[0]  
                     
                    
             
