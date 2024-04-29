@@ -114,17 +114,9 @@ class ConditionalFlowMatcher(Module):
               mask = None,
               ):
         batch, seq_len, dtype = *x.shape[:2], x.dtype
-        if not exists(mask):
-            mask = torch.ones(batch, seq_len, dtype=torch.bool, device=self.device)
+        # if not exists(mask):
+        #     mask = torch.ones(batch, seq_len, dtype=torch.bool, device=self.device)
             
-        if exists(context):
-            context = torch.cat([context, torch.zeros_like(x,dtype=dtype, device=self.device)], dim=-2)
-            context_mask = torch.ones(*context.shape[:2], dtype=torch.bool, device=self.device)
-            mask = torch.cat([context_mask, mask], dim=-1)
-            input_seq_len = seq_len + context.shape[1]
-        else:
-            context = torch.zeros_like(x,dtype=dtype, device=self.device)
-            input_seq_len = seq_len
             
         if times.ndim == 0:
             times = repeat(times, '-> b', b = batch)
@@ -135,7 +127,7 @@ class ConditionalFlowMatcher(Module):
         if self.adaptive_norm:
             time_emb = self.sinu_pos_emb(times)
             
-        times = repeat(times, 'b -> b n 1', n=input_seq_len)
+        times = repeat(times, 'b -> b n 1', n=seq_len)
             
         if self.concat_cond or not self.start_from_cond:
             x = torch.cat([x, semantic_emb, context, times], axis=-1)
@@ -155,7 +147,7 @@ class ConditionalFlowMatcher(Module):
             
         out = self.to_pred(out)
         
-        return out[:, -seq_len:]
+        return out
     
     @torch.inference_mode()
     @eval_decorator
@@ -163,9 +155,20 @@ class ConditionalFlowMatcher(Module):
                  *,
                  semantic_emb,
                  context = None,
+                 context_semantic_emb = None,
                  mask = None,
                  steps = 3):
-        batch, seq_len = semantic_emb.shape[:2]
+        batch, seq_len, dtype = *semantic_emb.shape[:2], semantic_emb.dtype
+        
+        if exists(context_semantic_emb):
+            assert exists(context), 'Context and context\'s semantic embeddings must appear simultaneously'
+            if exists(mask):
+                context_mask = torch.ones(*context.shape[:2], dtype=torch.bool, device=self.device)
+                mask = torch.cat([context_mask, mask], dim=-1)
+            context = torch.cat([context, torch.zeros_like(semantic_emb, dtype=dtype, device=self.device)], dim=-2)
+            semantic_emb = torch.cat([context_semantic_emb, semantic_emb], dim=-2)    
+        else:
+            context = torch.zeros_like(semantic_emb, dtype=dtype, device=self.device)
         
         if self.start_from_cond:
             y0 = torch.randn_like(semantic_emb) + semantic_emb
@@ -222,7 +225,7 @@ class ConditionalFlowMatcher(Module):
             generated = sol.ys[:, -1]
             generated = unpack_one(generated, packed_shape, 'b *')
             
-        return generated
+        return generated[:, -seq_len:]
                         
         
     def forward(self,
