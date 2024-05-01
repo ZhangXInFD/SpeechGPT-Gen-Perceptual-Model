@@ -21,6 +21,7 @@ from accelerate import Accelerator, DistributedType, DistributedDataParallelKwar
 from speechtokenizer import SpeechTokenizer
 from .regression import Regression
 from .ConditionalFlowMatcher import ConditionalFlowMatcher
+import time
 
 
 # helpers
@@ -960,6 +961,8 @@ class ConditionalFlowMatcherTrainer(nn.Module):
         for epoch in range(self.epochs):
             if self.is_main:
                 print(f'Epoch:{epoch} start...')
+            
+            tic = time.time()
                 
             for batch in self.dl:
                 
@@ -988,7 +991,8 @@ class ConditionalFlowMatcherTrainer(nn.Module):
                         
                         # log
                         if self.is_main and not (steps % self.log_steps):
-                            self.print(f"Epoch {epoch} -- Step {steps}: loss: {logs['loss']:0.3f}")
+                            self.print(f"Epoch {epoch} -- Step {steps}: loss: {logs['loss']:0.3f}\ttime cost per step:{(time.time() - tic) / self.log_steps:0.3f}s")
+                            tic = time.time()
                             self.accelerator.log({"train/loss": logs['loss'], "train/learning_rate": lr}, step=steps)
                         logs = {}
                         
