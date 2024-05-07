@@ -1,12 +1,17 @@
 from speechgpt_gen import ConditionalFlowMatcher, ConditionalFlowMatcherTrainer
 from speechtokenizer import SpeechTokenizer
 import yaml
+import argparse
 
 
 if __name__ == '__main__':
     
-    cnf_config = './config/adaptive_uconformer/spt_base_cfg.yaml'
-    with open(cnf_config) as f:
+    # cnf_config = '/remote-home/xzhang/Speech/SpeechGPT-Gen-Flow-Matcher/config/uconformer_concat_cond/spt_snake_cfg.yaml'
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', '-c', type=str, help='Config file path')
+    parser.add_argument('--continue_train', action='store_true', help='Continue trainning from checkpoints')
+    args = parser.parse_args()
+    with open(args.config) as f:
         cfg = yaml.safe_load(f)
     cnf_model = ConditionalFlowMatcher(cfg=cfg.get('model_args'))
     
@@ -35,4 +40,7 @@ if __name__ == '__main__':
                                 valid_file_list=valid_file_list,
                                 tokenizer=tokenizer,
                                 )
-    trainer.continue_train()
+    if args.continue_train:
+        trainer.continue_train()
+    else:
+        trainer.train()
