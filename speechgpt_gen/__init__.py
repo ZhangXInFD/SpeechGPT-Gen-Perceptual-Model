@@ -11,7 +11,8 @@ from .conformer import (
     Conformer
 )
 from .dataset import (
-    SoundStormDataset
+    SoundStormDataset,
+    HierDataset
 )
 from .regression import (
     Regression
@@ -19,6 +20,7 @@ from .regression import (
 
 from .ConditionalFlowMatcher import (
     ConditionalFlowMatcher,
+    HierarchicalConditionalMatcher,
     TransformerGenerator
 )
 

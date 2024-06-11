@@ -5,7 +5,7 @@ from shutil import rmtree
 import yaml
 
 from beartype import beartype
-from beartype.typing import Optional
+from beartype.typing import Optional, Union
 
 import torch
 from torch import nn
@@ -17,10 +17,10 @@ from .dataset import get_dataloader, SoundStormDataset
 from .optimizer import get_optimizer
 from .soundstorm import SoundStorm
 
-from accelerate import Accelerator, DistributedType, DistributedDataParallelKwargs
+from accelerate import Accelerator, DistributedType, DistributedDataParallelKwargs, DataLoaderConfiguration
 from speechtokenizer import SpeechTokenizer
 from .regression import Regression
-from .ConditionalFlowMatcher import ConditionalFlowMatcher
+from .ConditionalFlowMatcher import ConditionalFlowMatcher, HierarchicalConditionalMatcher
 import time
 
 
@@ -723,12 +723,12 @@ class ConditionalFlowMatcherTrainer(nn.Module):
     @beartype
     def __init__(
         self,
-        model,
+        model: Union[ConditionalFlowMatcher, HierarchicalConditionalMatcher],
         *,
         cfg,
-        train_file_list,
-        valid_file_list,
-        tokenizer: Optional[SpeechTokenizer] = None,
+        train_file_list = None,
+        valid_file_list = None,
+        tokenizer = None,
         trainset: Optional[Dataset] = None,
         devset: Optional[Dataset] = None,
     ):
@@ -738,9 +738,10 @@ class ConditionalFlowMatcherTrainer(nn.Module):
         results_folder = trainer_args.get('results_folder')
         accelerate_kwargs = trainer_args.get('accelerate_kwargs')
         accelerate_kwargs['project_dir'] = trainer_args.get('project_dir', results_folder)
+        dataloader_config = DataLoaderConfiguration(split_batches=trainer_args.get('split_batches', False),)
 
         self.accelerator = Accelerator(
-            split_batches = trainer_args.get('split_batches', False),
+            dataloader_config=dataloader_config,
             kwargs_handlers=[ddp_kwargs],
             **accelerate_kwargs
         )
@@ -748,6 +749,7 @@ class ConditionalFlowMatcherTrainer(nn.Module):
         self.model = model
         self.model_name = self.model.__class__.__name__
         # self.tokenizer = tokenizer
+        self.hierarchical = trainer_args.get('hierarchical', False)
 
         self.register_buffer('steps', torch.Tensor([0]))
 
@@ -901,26 +903,35 @@ class ConditionalFlowMatcherTrainer(nn.Module):
         if not exists(self.tokenizer):
             raise ModuleNotFoundError('No tokenizer in trainer but inputs are raw waves')
         
-        wav, length = batch
-        if isinstance(length, list):
-            length = torch.tensor(length)
-        with torch.inference_mode():
-            if isinstance(self.tokenizer, torch.nn.parallel.DistributedDataParallel):
-                token_ids = self.tokenizer.module.encode(wav.unsqueeze(1))
-                cond = self.tokenizer.module.quantizer.decode(token_ids[:1])
-                target = self.tokenizer.module.quantizer.decode(token_ids)
-            else:
-                token_ids = self.tokenizer.encode(wav.unsqueeze(1))
-                cond = self.tokenizer.quantizer.decode(token_ids[:1])
-                target = self.tokenizer.quantizer.decode(token_ids)
-        cond = rearrange(cond, 'b d t -> b t d')
-        target = rearrange(target, 'b d t -> b t d')
-        mask = torch.ones(cond.shape[:-1], dtype=torch.bool, device=self.device)
-        length = torch.div(length, self.downsample_rate, rounding_mode='trunc')
-        for i in range(wav.size(0)):
-            mask[i, length[i]:] = False
+        if not self.hierarchical:        
+            wav, length = batch
+            if isinstance(length, list):
+                length = torch.tensor(length)
+            with torch.inference_mode():
+                if isinstance(self.tokenizer, torch.nn.parallel.DistributedDataParallel):
+                    token_ids = self.tokenizer.module.encode(wav.unsqueeze(1))
+                    cond = self.tokenizer.module.quantizer.decode(token_ids[:1])
+                    target = self.tokenizer.module.quantizer.decode(token_ids)
+                else:
+                    token_ids = self.tokenizer.encode(wav.unsqueeze(1))
+                    cond = self.tokenizer.quantizer.decode(token_ids[:1])
+                    target = self.tokenizer.quantizer.decode(token_ids)
+            cond = rearrange(cond, 'b d t -> b t d')
+            target = rearrange(target, 'b d t -> b t d')
+            mask = torch.ones(cond.shape[:-1], dtype=torch.bool, device=self.device)
+            length = torch.div(length, self.downsample_rate, rounding_mode='trunc')
+            for i in range(wav.size(0)):
+                mask[i, length[i]:] = False
+            return cond, target, mask
+        else:
+            wav, semantic_tokens, mask = batch
+            with torch.inference_mode():
+                if isinstance(self.tokenizer, torch.nn.parallel.DistributedDataParallel):
+                    target = self.tokenizer.module.encode(wav.unsqueeze(1))
+                else:
+                    target = self.tokenizer.encode(wav.unsqueeze(1))
+            return semantic_tokens[:, :semantic_tokens.size(1)], target[:, :semantic_tokens.size(-1)], mask
         
-        return cond, target, mask
 
     @property
     def device(self):
@@ -967,12 +978,22 @@ class ConditionalFlowMatcherTrainer(nn.Module):
             for batch in self.dl:
                 
                 with self.accelerator.accumulate(self.model):
-                
-                    x0, x1, mask = self.tokenize(batch)
                     
-                    loss = self.model(x0 = x0,
-                                        x1 = x1,
-                                        mask = mask)
+                    if self.hierarchical:
+                        try:
+                            semantic_tokens, x1, mask = self.tokenize(batch)
+                            loss = self.model(semantic_tokens=semantic_tokens,
+                                            x1 = x1,
+                                            mask = mask)
+                        except:
+                            print(f'semantic tokens shape:{semantic_tokens.size()}\nx1 shape:{x1.size()}\nwav shape:{batch[0].size()}')
+                            assert 1 == 2
+                    else:
+                        x0, x1, mask = self.tokenize(batch)
+                        
+                        loss = self.model(x0 = x0,
+                                            x1 = x1,
+                                            mask = mask)
                     
                     if self.is_main:
                         accum_log(logs, {'loss': loss.item() / self.accelerator.gradient_accumulation_steps})
@@ -1008,12 +1029,19 @@ class ConditionalFlowMatcherTrainer(nn.Module):
                             self.model.eval()
                             for batch in self.valid_dl:
                                 with torch.inference_mode():
-                                    x0, x1, mask = self.tokenize(batch)
-                    
-                                    loss = self.model(x0 = x0,
+                                    if self.hierarchical:
+                                        semantic_tokens, x1, mask = self.tokenize(batch)
+                                        loss = self.model(semantic_tokens=semantic_tokens,
                                                         x1 = x1,
                                                         mask = mask)
-                                    b = x0.size(0)
+                                        b = semantic_tokens.size(0)
+                                    else:
+                                        x0, x1, mask = self.tokenize(batch)
+                                        
+                                        loss = self.model(x0 = x0,
+                                                            x1 = x1,
+                                                            mask = mask)
+                                        b = x0.size(0)
                                     num += b
                                     total_loss += loss.item() * b
                                     losses.append(loss.item())

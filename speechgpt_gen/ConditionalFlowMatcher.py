@@ -328,10 +328,12 @@ class HierarchicalConditionalMatcher(Module):
                 x1,
                 semantic_tokens,
                 mask = None,
-                max_cond_seq = 250
+                max_cond_seq = 300
                 ):
         
         x0 = self.semantic_embeddings(semantic_tokens)
+        if exists(mask):
+            x0 = x0.masked_fill(~mask.unsqueeze(-1), 0)
         
         return self.model(x1=x1,
                           x0=x0,
@@ -342,9 +344,15 @@ class HierarchicalConditionalMatcher(Module):
     @eval_decorator
     def generate(self,
                  semantic_tokens,
+                 context_semantic_tokens = None,
                  **kwargs):
+        if exists(context_semantic_tokens):
+            context_semantic_emb = self.semantic_embeddings(context_semantic_tokens)
         semantic_emb = self.semantic_embeddings(semantic_tokens)
-        return self.model.generate(semantic_emb=semantic_emb, **kwargs)
+        mask = kwargs.get('mask')
+        if exists(mask):
+            semantic_emb = semantic_emb.masked_fill(~mask.unsqueeze(-1), 0)
+        return self.model.generate(semantic_emb=semantic_emb, context_semantic_emb=context_semantic_emb, **kwargs)
         
         
 class TransformerGenerator(Module):

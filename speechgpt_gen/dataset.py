@@ -1,13 +1,10 @@
 from torch.utils.data import Dataset, DataLoader
-from speechtokenizer import SpeechTokenizer
-from einops import rearrange
 import torchaudio
 import torch
 from functools import wraps
 from torch.nn.utils.rnn import pad_sequence
 import numpy as np
 from beartype import beartype
-from beartype.typing import Optional
 
 TOKEN_PAD_VALUE = 1024
 WAV_PAD_VALUE = 0
@@ -22,7 +19,10 @@ def collate_one_or_multiple_tensors(fn):
         outputs = []
         for datum in zip(*data):
             if isinstance(datum[0], torch.Tensor):
-                output = fn(datum)
+                if datum[0].dtype == torch.bool:
+                    output = pad_sequence(datum, batch_first=True, padding_value=False)
+                else:
+                    output = fn(datum)
             else:
                 output = list(datum)
             outputs.append(output)
@@ -117,4 +117,42 @@ class SoundStormDataset(Dataset):
             if self.hierarchical:
                 return units, wav[:, :self.max_sequence].squeeze(0), min(wav.size(-1), self.max_sequence)            
             return wav.squeeze()[:self.max_sequence], min(wav.size(-1), self.max_sequence)
+        
+class HierDataset(Dataset):
+    
+    def __init__(self,
+                 data_list, 
+                 audio_root: str,
+                 sample_rate: int= 16000,
+                 max_sequence: int=512,
+                 downsample_rate: int=320,
+                 ):
+        
+        self.data_list = data_list
+        self.audio_root = audio_root
+        self.sample_rate = sample_rate
+        self.max_sequence = max_sequence
+        self.downsample_rate = downsample_rate
+        
+    def __len__(self):
+        return len(self.data_list)
+    
+    def __getitem__(self, index):
+        data = self.data_list[index]
+        # wav, sr = torchaudio.load(data['audio_path'])
+        # audio_path, units, text = data.strip().split('\t')
+        audio_path, units = data.strip().split('\t')[:2]
+        audio_path = f'{self.audio_root}/{"/".join(audio_path.split("_")[:2])}/{audio_path}.flac'
+        wav, sr = torchaudio.load(audio_path)
+        if sr != self.sample_rate:
+            wav = torchaudio.functional.resample(wav, sr, self.sample_rate)
+        # units = torch.from_numpy(data['units'])
+        units = torch.from_numpy(np.array(units.split()).astype(int))
+        if units.size(-1) > self.max_sequence:
+            start = torch.randint(0, units.size(-1) - self.max_sequence, (1,))
+            wav = wav[:, (start * self.downsample_rate): (start + self.max_sequence) * self.downsample_rate]
+            units = units[start: (start + self.max_sequence)]
+        mask = torch.ones_like(units, dtype=torch.bool, device=units.device)
+            
+        return wav.squeeze(), units, mask
         
