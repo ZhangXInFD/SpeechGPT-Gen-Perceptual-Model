@@ -44,7 +44,7 @@ def get_dataloader(ds, is_raw_wav=False, **kwargs):
 
 
 
-class SoundStormDataset(Dataset):
+class AudioDataset(Dataset):
     
     @beartype
     def __init__(self, 

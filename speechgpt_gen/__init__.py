@@ -11,7 +11,7 @@ from .conformer import (
     Conformer
 )
 from .dataset import (
-    SoundStormDataset,
+    AudioDataset,
     HierDataset
 )
 from .regression import (

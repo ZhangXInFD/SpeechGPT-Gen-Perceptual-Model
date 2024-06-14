@@ -33,10 +33,9 @@ def get_mask_subset_prob(
     logits = torch.rand((batch, seq), device = device)
     logits = logits.masked_fill(~mask, -1)
 
-    randperm = logits.argsort(dim = -1).float()
+    randperm = logits.argsort(dim = -1).argsort(dim=-1).float()
 
-    # num_padding = (~mask).sum(dim = -1, keepdim = True)
-    num_padding = (~mask).sum(dim = -1, keepdim = True) - 1
+    num_padding = (~mask).sum(dim = -1, keepdim = True)
     randperm -= num_padding
 
     subset_mask = randperm < num_to_mask
@@ -183,20 +182,17 @@ LossBreakdown = namedtuple('LossBreakdown', ['generator_loss', 'critic_loss'])
 class SoundStorm(nn.Module):
     
     def __init__(self,
-                 net: ConformerWrapper,
-                 num_semantic_token_ids,
-                 semantic_pad_id = -1,
-                 pad_id = None,
-                 schedule = 'linear',
+                 cfg
                  ):
         super().__init__()
-        self.net = net
-        self.dim = net.dim
-        self.num_tokens = net.codebook_size
-        self.pad_id = pad_id
-        self.num_semantic_token_ids = num_semantic_token_ids
-        self.semantic_token_emb = nn.Embedding(num_semantic_token_ids, self.dim)
-        self.semantic_pad_id = semantic_pad_id
+        self.net = ConformerWrapper(**cfg.get('ConformerWrapper'))
+        self.dim = self.net.dim
+        self.num_tokens = self.net.codebook_size
+        self.pad_id = cfg.get('pad_id')
+        self.num_semantic_token_ids = cfg.get('num_semantic_token_ids')
+        self.semantic_token_emb = nn.Embedding(self.num_semantic_token_ids, self.dim)
+        self.semantic_pad_id = cfg.get('semantic_pad_id', -1)
+        schedule = cfg.get('schedule', 'linear')
         if callable(schedule):
             self.schedule_fn = schedule
         elif schedule == 'linear':
@@ -205,8 +201,8 @@ class SoundStorm(nn.Module):
             self.schedule_fn = cosine_schedule
         else:
             raise ValueError(f'invalid schedule {schedule}')
-        self.num_quantizers = net.num_quantizers
-        self.mask_id = net.codebook_size
+        self.num_quantizers = self.net.num_quantizers
+        self.mask_id = self.net.codebook_size
     
     def get_condition(self, token_ids, length=None):
         mask = token_ids != self.semantic_pad_id
@@ -308,16 +304,10 @@ class SoundStorm(nn.Module):
                 scores = rearrange(scores, 'b n 1 -> b n')
                 mask_value = -torch.finfo(scores.dtype).max
                 scores = scores.masked_fill(~seq_mask_with_quantizer, mask_value)
-                # scores = rearrange(scores, 'b (n q) -> b n q', q = self.num_quantizers)
-                # mask = torch.zeros_like(scores, dtype = torch.bool, device=device)
-                scores_sorted = scores.argsort(dim=-1, descending=True)
-                # scores_sorted = scores.argsort(dim = -2, descending = True)
+                scores_sorted = scores.argsort(dim=-1, descending=True).argsort(dim=-1)
                 mask_num_tokens = rearrange(mask_num_tokens, 'b -> b 1')
                 mask = scores_sorted < mask_num_tokens
                 mask = rearrange(mask, 'b (n q) -> b n q', q=self.num_quantizers)
-                # mask_tokens = scores_sorted[:, :mask_num_tokens, q]
-                # rows = torch.arange(mask_tokens.size(0)).unsqueeze(-1).expand_as(mask_tokens)
-                # mask[rows, mask_tokens, q] = True
                 mask[:, :, (q + 1):] = True
                 mask = mask & prompt_mask
                 

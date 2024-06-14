@@ -190,8 +190,8 @@ class ConformerBlock(nn.Module):
         self.attn = PreNorm(self.attn, norm=norm, **norm_kwargs)
         self.ff1 = PreNorm(self.ff1, norm=norm, **norm_kwargs)
         self.ff2 = PreNorm(self.ff2, norm=norm, **norm_kwargs)
-        # self.ff1 = Scale(0.5, PreNorm(dim, self.ff1))
-        # self.ff2 = Scale(0.5, PreNorm(dim, self.ff2))
+        self.ff1 = Scale(0.5, self.ff1)
+        self.ff2 = Scale(0.5, self.ff2)
 
         self.post_norm = nn.LayerNorm(dim)
 
