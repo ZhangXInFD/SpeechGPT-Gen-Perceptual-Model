@@ -12,7 +12,7 @@ This repository is the official implementation of SpeechGPT-gen preceptual model
 ## Release Schedule
 - [2024/7] 🔥 We will realease conditional flow matching preceptual model checkpoints of SpeechGPT-Gen. 
 - [2024/6] 🔥 We released code and SoundStorm checkpoint of SpeechGPT-Gen preceptual model. Checkout the [paper](https://arxiv.org/abs/2401.13527) and [demo](https://0nutation.github.io/SpeechGPT-Gen.github.io/).
-- [2024/1] 🔥 We released paper and project of SpeechGPT-Gen[SpeechGPT-Gen](https://github.com/0nutation/SpeechGPT/tree/main/speechgpt-gen).
+- [2024/1] 🔥 We released paper and project of [SpeechGPT-Gen](https://github.com/0nutation/SpeechGPT/tree/main/speechgpt-gen).
 
 ## Samples
 
