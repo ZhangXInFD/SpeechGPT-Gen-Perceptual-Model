@@ -2,7 +2,7 @@
 [![Paper](https://img.shields.io/badge/arXiv-2401.13527-red.svg?style=flat-square)](https://arxiv.org/pdf/2401.13527.pdf) [![Project](https://img.shields.io/badge/Project-Page-Green?style=flat-square)](https://github.com/0nutation/SpeechGPT)  [![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)]()   [![Demo page](https://img.shields.io/badge/Demo_Page-blue?logo=Github&style=flat-square)](https://0nutation.github.io/SpeechGPT-Gen.github.io/)
 
 ## Intorduction
-This repository is the official implementation of SpeechGPT-gen preceptual model presented in [SpeechGPT-Gen: Scaling Chain-of-Information Speech Generation](https://arxiv.org/abs/2401.13527). SpeechGPT-Gen comprises an autoregressive model based on LLM for semantic information modeling and a non-autogressive model employing conditional flow matching for perceptual information modeling. SpeechGPT-Gen markedly excels in zero-shot text-to-speech, zero-shot voice conversion and speech-to-speech dialogue, underscoring CoIG's remarkable proficiency in capturing and modeling speech's semantic and preceptual dimentions. This repository contains implementations of ConditionalFlowMatcher, SoundStorm  and corresponding trainers for peceptual modeling. 
+This repository is the official implementation of SpeechGPT-gen perceptual model presented in [SpeechGPT-Gen: Scaling Chain-of-Information Speech Generation](https://arxiv.org/abs/2401.13527). SpeechGPT-Gen comprises an autoregressive model based on LLM for semantic information modeling and a non-autogressive model employing conditional flow matching for perceptual information modeling. SpeechGPT-Gen markedly excels in zero-shot text-to-speech, zero-shot voice conversion and speech-to-speech dialogue, underscoring CoIG's remarkable proficiency in capturing and modeling speech's semantic and perceptual dimentions. This repository contains implementations of ConditionalFlowMatcher, SoundStorm  and corresponding trainers for peceptual modeling. 
 <br>
 <p align="center">
     <img src="images/model.png" width="95%"> <br>
@@ -10,8 +10,8 @@ This repository is the official implementation of SpeechGPT-gen preceptual model
 </p>
 
 ## Release Schedule
-- [2024/7] 🔥 We will realease conditional flow matching preceptual model checkpoints of SpeechGPT-Gen. 
-- [2024/6] 🔥 We released code and SoundStorm checkpoint of SpeechGPT-Gen preceptual model. Checkout the [paper](https://arxiv.org/abs/2401.13527) and [demo](https://0nutation.github.io/SpeechGPT-Gen.github.io/).
+- [2024/7] 🔥 We will realease conditional flow matching perceptual model checkpoints of SpeechGPT-Gen. 
+- [2024/6] 🔥 We released code and SoundStorm checkpoint of SpeechGPT-Gen perceptual model. Checkout the [paper](https://arxiv.org/abs/2401.13527) and [demo](https://0nutation.github.io/SpeechGPT-Gen.github.io/).
 - [2024/1] 🔥 We released paper and project of [SpeechGPT-Gen](https://github.com/0nutation/SpeechGPT/tree/main/speechgpt-gen).
 
 ## Samples
@@ -28,7 +28,7 @@ pip install -e .
 ## Usage
 ### Load Model
 ```python
-from speechgpt_gen_preceptual import ConditionalFlowMatcher, SoundStorm
+from speechgpt_gen_perceptual import ConditionalFlowMatcher, SoundStorm
 import yaml
 
 # Conditional Flow Matching Model
