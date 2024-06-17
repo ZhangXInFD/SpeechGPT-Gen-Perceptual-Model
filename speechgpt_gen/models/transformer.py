@@ -318,6 +318,22 @@ class Transformer(nn.Module):
         adaptive_rmsnorm = False,
         adaptive_rmsnorm_cond_dim_in = None
     ):
+        """_summary_
+        Encoder-Decoder Tansformer with cross-attention
+
+        Args:
+            dim (_type_): _description_
+            depth (_type_): _description_
+            context_encoder_depth (_type_, optional): _description_. Defaults to None.
+            heads (int, optional): _description_. Defaults to 8.
+            ff_mult (int, optional): _description_. Defaults to 4.
+            attn_dropout (_type_, optional): _description_. Defaults to 0..
+            ff_dropout (_type_, optional): _description_. Defaults to 0..
+            attn_flash (bool, optional): _description_. Defaults to True.
+            t5_rel_pos_bias (bool, optional): _description_. Defaults to False.
+            adaptive_rmsnorm (bool, optional): _description_. Defaults to False.
+            adaptive_rmsnorm_cond_dim_in (_type_, optional): _description_. Defaults to None.
+        """
         super().__init__()
 
         context_encoder_depth = default(context_encoder_depth, depth)
@@ -383,6 +399,21 @@ class Uformer(nn.Module):
         adaptive_rmsnorm = False,
         adaptive_rmsnorm_cond_dim_in = None
     ):
+        """_summary_
+        Encoder-Decoder Uformer with cross-attention
+        Args:
+            dim (_type_): _description_
+            depth (_type_): _description_
+            context_encoder_depth (_type_, optional): _description_. Defaults to None.
+            heads (int, optional): _description_. Defaults to 8.
+            ff_mult (int, optional): _description_. Defaults to 4.
+            attn_dropout (_type_, optional): _description_. Defaults to 0..
+            ff_dropout (_type_, optional): _description_. Defaults to 0..
+            attn_flash (bool, optional): _description_. Defaults to True.
+            t5_rel_pos_bias (bool, optional): _description_. Defaults to False.
+            adaptive_rmsnorm (bool, optional): _description_. Defaults to False.
+            adaptive_rmsnorm_cond_dim_in (_type_, optional): _description_. Defaults to None.
+        """
         super().__init__()
 
         context_encoder_depth = default(context_encoder_depth, depth)

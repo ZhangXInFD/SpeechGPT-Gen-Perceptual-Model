@@ -14,8 +14,7 @@ from torchdiffeq import odeint
 
 from einops import rearrange, repeat, reduce, pack, unpack
 
-from .conformer import UConformer, Conformer
-from .transformer import Transformer, Uformer
+from .backbone import *
 from .utils import *
 from pathlib import Path
 
@@ -64,20 +63,21 @@ class ConditionalFlowMatcher(Module):
             options = dict(step_size = cfg.get("ode_step_size", 0.0625))
         )
         
-        conformer_kwargs = cfg.get("conformer_kwargs")
+        backbone_kwargs = cfg.get("backbone_kwargs")
         
-        dim = conformer_kwargs['dim']
+        dim = backbone_kwargs['dim']
         dim_in = cfg.get("dim_in", dim)
-        time_hidden_dim = conformer_kwargs['adaptive_rmsnorm_cond_dim_in']
+        time_hidden_dim = backbone_kwargs['adaptive_rmsnorm_cond_dim_in']
         
-        model_type = cfg.get("model_type", 'uconformer')
-        if model_type == 'conformer':
-            self.net = Conformer(**conformer_kwargs)
-        elif model_type == 'uconformer':
-            self.net = UConformer(**conformer_kwargs)
-        else:
-            raise NotImplementedError('Must be \'conformer\' or \'uconformer\'')
-        self.adaptive_norm = conformer_kwargs["adaptive_rmsnorm"]
+        backbone_type = cfg.get("backbone_type", 'uconformer')
+        try:
+            net_type = NET_NAME_DICT[backbone_type]
+        except:
+            raise NotImplementedError(f'No implementation of {backbone_type}')
+        
+        self.net = net_type(**backbone_kwargs)
+
+        self.adaptive_norm = backbone_kwargs["adaptive_rmsnorm"]
         self.start_from_cond = cfg.get("start_from_cond")
         self.concat_cond = cfg.get("concat_cond")
         self.explicit = cfg.get("explicit", False)
@@ -309,7 +309,7 @@ class HierarchicalConditionalMatcher(Module):
         
         super().__init__()
         num_semantic_tokens = cfg.get('num_semantic_tokens')
-        semantic_emb_dim = cfg.get('conformer_kwargs')['dim']
+        semantic_emb_dim = cfg.get('backbone_kwargs')['dim']
         self.semantic_embeddings = nn.Embedding(num_semantic_tokens, semantic_emb_dim)
         
         self.model = ConditionalFlowMatcher(cfg) # start_from_cond = False, concat_cond=True, explicit=False
@@ -373,15 +373,15 @@ class TransformerGenerator(Module):
             options = dict(step_size = cfg.get("ode_step_size", 0.0625))
         )
         
-        transformer_kwargs = cfg.get("transformer_kwargs")
+        transformer_kwargs = cfg.get("backbone_kwargs")
         
         dim = transformer_kwargs['dim']
         dim_in = cfg.get("dim_in", dim)
         time_hidden_dim = transformer_kwargs['adaptive_rmsnorm_cond_dim_in']
-        self.model_type = cfg.get('model_type', 'uformer')
-        if self.model_type == 'transformer':
+        self.backbone_type = cfg.get('backbone_type', 'uformer')
+        if self.backbone_type == 'transformer':
             self.net = Transformer(**transformer_kwargs)
-        elif self.model_type == 'uformer':
+        elif self.backbone_type == 'uformer':
             self.net = Uformer(**transformer_kwargs)
         else:
             raise NotImplementedError

@@ -7,8 +7,8 @@ import torch.nn.functional as F
 from einops import rearrange
 
 from beartype import beartype
-from beartype.typing import Union, Dict
-from .conformer import Conformer
+from beartype.typing import Union
+from .backbone import NET_NAME_DICT
 from .utils import *
 from pathlib import Path
 
@@ -40,10 +40,17 @@ def get_mask_subset_prob(
 class Regression(nn.Module):
     
     def __init__(self,
-                 net: Conformer,
-                 schedule = 'linear'):
+                 cfg):
         super().__init__()
-        self.net = net
+        schedule = cfg.get('schedule')
+        backbone_kwargs = cfg.get("backbone_kwargs")
+        backbone_type = cfg.get("backbone_type", 'uconformer')
+        try:
+            net_type = NET_NAME_DICT[backbone_type]
+        except:
+            raise NotImplementedError(f'No implement of {backbone_type}')
+        
+        self.net = net_type(**backbone_kwargs)
         if callable(schedule):
             self.schedule_fn = schedule
         elif schedule == 'linear':
@@ -107,5 +114,5 @@ class Regression(nn.Module):
         # regression loss
         seq_mask = (~seq_mask) & mask
         loss = (0.5 * F.mse_loss(output[seq_mask], target[seq_mask]) + F.l1_loss(output[seq_mask], target[seq_mask]))
-        return loss, output
+        return loss
         

@@ -6,8 +6,6 @@ from functools import wraps
 from random import random
 from einops import rearrange
 from torch.cuda.amp import autocast
-
-
 # helpers
 
 def divisible_by(numer, denom):

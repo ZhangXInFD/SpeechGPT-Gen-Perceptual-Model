@@ -13,6 +13,7 @@ from beartype import beartype
 from beartype.typing import Union, Dict
 from .conformer import Conformer
 from .utils import *
+from .backbone import *
 
 
 
@@ -44,7 +45,7 @@ def get_mask_subset_prob(
 
 # conformer with sum reduction across quantized tokens at the beginning, along with heads
 
-class ConformerWrapper(nn.Module):
+class BackboneWrapper(nn.Module):
 
     @beartype
     def __init__(
@@ -52,16 +53,14 @@ class ConformerWrapper(nn.Module):
         *,
         codebook_size,
         num_quantizers,
-        conformer: Union[Conformer, Dict[str, any]],
+        model_type,
+        backbone_kwargs,
         grouped_quantizers = 1
     ):
         super().__init__()
-        self.conformer = conformer
+        self.net = NET_NAME_DICT[model_type](**backbone_kwargs)
 
-        if isinstance(conformer, dict):
-            self.conformer = Conformer(**self.conformer)
-
-        dim = self.conformer.dim
+        dim = self.net.dim
 
         self.embedding_proj = nn.Sequential(
             nn.Linear(dim * grouped_quantizers, dim),
@@ -145,7 +144,7 @@ class ConformerWrapper(nn.Module):
 
             x = x + cond
 
-        x = self.conformer(x, mask = mask)
+        x = self.net(x, mask = mask)
         embeds = self.heads(x)
 
         if return_embeddings or not exists(self.to_logits):
@@ -163,7 +162,7 @@ class ConformerWrapper(nn.Module):
 class LogitHead(nn.Module):
     def __init__(
         self,
-        net: ConformerWrapper,
+        net: BackboneWrapper,
         logit_dim
     ):
         super().__init__()
@@ -175,9 +174,6 @@ class LogitHead(nn.Module):
         embed = self.net(x, return_embeddings = True)
         return self.to_logits(embed)
 
-# main soundstorm class, which is just a maskgit
-
-LossBreakdown = namedtuple('LossBreakdown', ['generator_loss', 'critic_loss'])
 
 class SoundStorm(nn.Module):
     
@@ -185,7 +181,7 @@ class SoundStorm(nn.Module):
                  cfg
                  ):
         super().__init__()
-        self.net = ConformerWrapper(**cfg.get('ConformerWrapper'))
+        self.net = BackboneWrapper(**cfg.get('BackboneWrapper'))
         self.dim = self.net.dim
         self.num_tokens = self.net.codebook_size
         self.pad_id = cfg.get('pad_id')
@@ -383,10 +379,11 @@ class SoundStorm(nn.Module):
         # CE loss
         loss = F.cross_entropy(logits[mask],
                                orig_seq[mask])
-        sampled_ids = logits.argmax(axis=-1)
-        # sampled_ids = gumbel_sample(logits, temperature = default(generator_sample_temperature, random()))
-        acc = (sampled_ids[mask] == orig_seq[mask]).sum() / mask.sum()
-        generated = torch.where(mask, sampled_ids, orig_seq)
+        # sampled_ids = logits.argmax(axis=-1)
+        # # sampled_ids = gumbel_sample(logits, temperature = default(generator_sample_temperature, random()))
+        # acc = (sampled_ids[mask] == orig_seq[mask]).sum() / mask.sum()
+        # generated = torch.where(mask, sampled_ids, orig_seq)
         
-        return loss, acc, generated
+        # return loss, acc, generated
+        return loss
                  
