@@ -14,7 +14,7 @@ from .regression import (
 )
 
 from .flowmatching import (
-    HierarchicalConditionalMatcher,
+    HierarchicalConditionalFlowMatcher,
     ConditionalFlowMatcher
 )
 

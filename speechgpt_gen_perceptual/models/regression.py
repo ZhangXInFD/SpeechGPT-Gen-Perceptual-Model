@@ -91,6 +91,15 @@ class Regression(nn.Module):
         params = torch.load(str(path), map_location = 'cpu')
         self.load_state_dict(params, strict = strict)
     
+    @classmethod    
+    def from_pretrained(cls, path):
+        import yaml
+        with open(f'{path}/model_config.yml') as f:
+            cfg = yaml.safe_load(f)
+        model = cls(cfg)
+        model.load(f'{path}/{model.__class__.__name__}_best_dev.pt')
+        return model
+    
     def forward(self,
                 x,
                 cond,

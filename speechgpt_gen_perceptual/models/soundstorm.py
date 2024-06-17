@@ -53,12 +53,12 @@ class BackboneWrapper(nn.Module):
         *,
         codebook_size,
         num_quantizers,
-        model_type,
+        backbone_type,
         backbone_kwargs,
         grouped_quantizers = 1
     ):
         super().__init__()
-        self.net = NET_NAME_DICT[model_type](**backbone_kwargs)
+        self.net = NET_NAME_DICT[backbone_type](**backbone_kwargs)
 
         dim = self.net.dim
 
@@ -223,9 +223,18 @@ class SoundStorm(nn.Module):
         params = torch.load(str(path), map_location = 'cpu')
         self.load_state_dict(params, strict = strict)
         
+    @classmethod    
+    def from_pretrained(cls, path):
+        import yaml
+        with open(f'{path}/model_config.yml') as f:
+            cfg = yaml.safe_load(f)
+        model = cls(cfg)
+        model.load(f'{path}/{model.__class__.__name__}_best_dev.pt')
+        return model
+        
     @torch.no_grad()
     @eval_decorator
-    def genenrate(self,
+    def generate(self,
                   semantic_tokens,
                   prompt_tokens = None,
                   steps = 8,

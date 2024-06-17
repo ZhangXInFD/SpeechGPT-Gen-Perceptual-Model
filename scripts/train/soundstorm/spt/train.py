@@ -1,4 +1,4 @@
-from speechgpt_gen import SoundStorm, SoundStormTrainer
+from speechgpt_gen_preceptual import SoundStorm, SoundStormTrainer
 from speechtokenizer import SpeechTokenizer
 import yaml
 import argparse

@@ -1,5 +1,5 @@
 import dac
-from speechgpt_gen import SoundStorm, HierDataset, SoundStormTrainer
+from speechgpt_gen_preceptual import SoundStorm, HierDataset, SoundStormTrainer
 import yaml
 import argparse
 import torch.nn as nn

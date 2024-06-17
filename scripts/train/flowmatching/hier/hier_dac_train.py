@@ -1,5 +1,5 @@
 import dac
-from speechgpt_gen import ConditionalFlowMatcherTrainer, HierarchicalConditionalMatcher, HierDataset
+from speechgpt_gen_preceptual import ConditionalFlowMatcherTrainer, HierarchicalConditionalFlowMatcher, HierDataset
 import yaml
 import argparse
 import torch.nn as nn
@@ -35,7 +35,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
-    cnf_model = HierarchicalConditionalMatcher(cfg=cfg.get('model_args'))
+    cnf_model = HierarchicalConditionalFlowMatcher(cfg=cfg.get('model_args'))
     
     # Initial tokenizer
     st_ckpt = cfg['trainer_args'].get('speechtokenizer_ckpt') 

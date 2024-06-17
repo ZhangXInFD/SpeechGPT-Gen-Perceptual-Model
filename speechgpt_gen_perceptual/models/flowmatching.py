@@ -17,6 +17,7 @@ from einops import rearrange, repeat, reduce, pack, unpack
 from .backbone import *
 from .utils import *
 from pathlib import Path
+import yaml
 
 
 LOGGER = logging.getLogger(__file__)
@@ -103,6 +104,14 @@ class ConditionalFlowMatcher(Module):
         params = torch.load(str(path), map_location = 'cpu')
         self.load_state_dict(params, strict = strict)
     
+    @classmethod    
+    def from_pretrained(cls, path):
+        with open(f'{path}/model_config.yml') as f:
+            cfg = yaml.safe_load(f)
+        model = cls(cfg)
+        model.load(f'{path}/{model.__class__.__name__}_best_dev.pt')
+        return model
+    
     @torch.inference_mode()
     @eval_decorator
     def infer(self,
@@ -157,7 +166,7 @@ class ConditionalFlowMatcher(Module):
                  context = None,
                  context_semantic_emb = None,
                  mask = None,
-                 steps = 3):
+                 steps = 8):
         batch, seq_len, dtype = *semantic_emb.shape[:2], semantic_emb.dtype
         
         if exists(context_semantic_emb):
@@ -303,7 +312,7 @@ class ConditionalFlowMatcher(Module):
         
         return loss
         
-class HierarchicalConditionalMatcher(Module):
+class HierarchicalConditionalFlowMatcher(Module):
     
     def __init__(self, cfg):
         
@@ -323,6 +332,14 @@ class HierarchicalConditionalMatcher(Module):
         assert path.exists()
         params = torch.load(str(path), map_location = 'cpu')
         self.load_state_dict(params, strict = strict)
+        
+    @classmethod    
+    def from_pretrained(cls, path):
+        with open(f'{path}/model_config.yml') as f:
+            cfg = yaml.safe_load(f)
+        model = cls(cfg)
+        model.load(f'{path}/{model.__class__.__name__}_best_dev.pt')
+        return model
         
     def forward(self,
                 x1,

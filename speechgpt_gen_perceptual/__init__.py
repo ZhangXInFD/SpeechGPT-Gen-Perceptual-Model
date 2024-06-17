@@ -2,7 +2,7 @@ from .models import (
     Regression,
     SoundStorm,
     ConditionalFlowMatcher,
-    HierarchicalConditionalMatcher
+    HierarchicalConditionalFlowMatcher
 )
 
 from .trainer import (
