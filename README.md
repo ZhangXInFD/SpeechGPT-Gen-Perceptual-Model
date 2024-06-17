@@ -68,7 +68,7 @@ The following examples for voice conversion using SoundStorm, the flow matching 
 * [scripts/infer/flowmatching/voice_conversion.py](scripts/infer/flowmatching/voice_conversion.py) 
 * [scripts/infer/flowmatching/hier_voice_conversion.py](scripts/infer/flowmatching/hier_voice_conversion.py).
 
-We explain the `generate` method arguments models in the following:
+We explain the `generate` method arguments in the following:
 * ConditionalFlowMatcher
     * `semantic_emb`: Continuous semantic representations of source speech, namely RVQ-1 quantized of SpeechTokenizer.
     * `context`: RVQ-1:8 continuous representations extracted from target speech by SpeechTokenizer.
